@@ -2,6 +2,9 @@ package com.github.mattrandom.productservice.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.mattrandom.productservice.dto.ProductRequest;
+import com.github.mattrandom.productservice.model.Product;
+import com.github.mattrandom.productservice.repository.ProductRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -15,11 +18,13 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
+import java.util.List;
 
+import static org.hamcrest.CoreMatchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.hamcrest.CoreMatchers.*;
 
 @AutoConfigureMockMvc
 @SpringBootTest
@@ -46,14 +51,18 @@ class ProductControllerIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private ProductRepository productRepository;
+
+    @BeforeEach
+    void setUp() {
+        productRepository.deleteAll();
+    }
+
     @Test
     void shouldCreateProduct() throws Exception {
         //given
-        ProductRequest productRequest = ProductRequest.builder()
-                .name("iPhone 15")
-                .description("New iPhone 15!")
-                .price(BigDecimal.valueOf(5000))
-                .build();
+        ProductRequest productRequest = prepareProductRequest("1", "1", 1000.0);
 
         //when
         ResultActions response = mockMvc.perform(post("/api/products")
@@ -63,5 +72,44 @@ class ProductControllerIT {
         //then
         response.andDo(print())
                 .andExpect(status().isCreated());
+
+        assertEquals(1, productRepository.findAll().size());
+    }
+
+
+    @Test
+    void shouldRetrieveProducts() throws Exception {
+        //given
+        Product product1 = prepareProduct("1", "1", 1000.0);
+        Product product2 = prepareProduct("2", "2", 2000.0);
+        List<Product> products = List.of(product1, product2);
+        productRepository.saveAll(products);
+
+        //when
+        ResultActions response = mockMvc.perform(get("/api/products"));
+
+        //then
+        response.andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size()", is(products.size())))
+                .andExpect(jsonPath("$.[0].name", is(products.get(0).getName())));
+
+        assertEquals(2, productRepository.findAll().size());
+    }
+
+    private ProductRequest prepareProductRequest(String name, String description, double price) {
+        return ProductRequest.builder()
+                .name("P" + name)
+                .description("D" + description)
+                .price(BigDecimal.valueOf(price))
+                .build();
+    }
+
+    private Product prepareProduct(String name, String description, double price) {
+        return Product.builder()
+                .name("P" + name)
+                .description("D" + description)
+                .price(BigDecimal.valueOf(price))
+                .build();
     }
 }
